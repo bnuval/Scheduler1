@@ -3,33 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Team Scheduling System</title>
+    <title>Cloud Team Scheduler</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 20px;
             background: #f5f6fa;
         }
-
         .header {
             text-align: center;
             margin-bottom: 30px;
+            padding: 20px;
+            background: #2c3e50;
+            color: white;
+            border-radius: 10px;
         }
-
         .selection-panels {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
             margin-bottom: 30px;
         }
-
         .selection-panel {
             background: white;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-
         .calendar {
             display: grid;
             grid-template-columns: 100px repeat(14, 1fr);
@@ -40,7 +40,6 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             overflow-x: auto;
         }
-
         .time-header, .day-header {
             padding: 10px;
             text-align: center;
@@ -48,16 +47,13 @@
             position: sticky;
             z-index: 1;
         }
-
         .time-header {
             left: 0;
             text-align: right;
         }
-
         .day-header {
             top: 0;
         }
-
         .time-slot {
             position: relative;
             min-height: 80px;
@@ -67,12 +63,10 @@
             transition: all 0.2s;
             background: white;
         }
-
         .booked {
             background: #e8f6e8;
             border-color: #2ecc71;
         }
-
         .notification {
             position: fixed;
             top: 20px;
@@ -83,7 +77,6 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
             z-index: 1000;
         }
-
         .meeting-modal {
             display: none;
             position: fixed;
@@ -97,14 +90,12 @@
             z-index: 1001;
             width: 400px;
         }
-
         .meeting-form input {
             width: 100%;
             padding: 8px;
             margin: 8px 0;
             box-sizing: border-box;
         }
-
         .meeting-details {
             font-size: 0.9em;
             margin-top: 5px;
@@ -112,12 +103,10 @@
             background: rgba(255,255,255,0.9);
             border-radius: 4px;
         }
-
         .meeting-title {
             font-weight: bold;
             margin-bottom: 3px;
         }
-
         .overlay {
             display: none;
             position: fixed;
@@ -128,11 +117,9 @@
             background: rgba(0,0,0,0.5);
             z-index: 1000;
         }
-
         .success { background: #2ecc71; }
         .error { background: #e74c3c; }
         .warning { background: #f1c40f; }
-
         .meeting-actions {
             margin-top: 8px;
             display: flex;
@@ -140,14 +127,12 @@
         }
         .edit-btn { background: #3498db; color: white; border: none; padding: 3px 8px; cursor: pointer; }
         .delete-btn { background: #e74c3c; color: white; border: none; padding: 3px 8px; cursor: pointer; }
-
         #teamSelector, #leadSelector {
             display: flex;
             flex-wrap: wrap;
             gap: 15px;
             margin-top: 10px;
         }
-
         #teamSelector label, #leadSelector label {
             display: flex;
             align-items: center;
@@ -157,21 +142,35 @@
             border-radius: 20px;
             border: 1px solid #ddd;
         }
+        .team-tag {
+            background: #e8f4ff;
+            padding: 3px 8px;
+            border-radius: 12px;
+            margin: 2px;
+            display: inline-block;
+        }
+        .lead-tag {
+            background: #fff3e0;
+            padding: 3px 8px;
+            border-radius: 12px;
+            margin: 2px;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Team Scheduling System</h1>
-        <p>Schedule slots for the next 2 weeks</p>
+        <h1>Cloud Team Scheduler</h1>
+        <p>Next 14-Day Schedule Management</p>
     </div>
 
     <div class="selection-panels">
         <div class="selection-panel">
-            <h3>Teams</h3>
+            <h3>Development Teams</h3>
             <div id="teamSelector"></div>
         </div>
         <div class="selection-panel">
-            <h3>Leads</h3>
+            <h3>Team Leads</h3>
             <div id="leadSelector"></div>
         </div>
     </div>
@@ -179,7 +178,7 @@
     <div class="calendar" id="calendar"></div>
 
     <div class="selection-panel" style="margin-top: 20px;">
-        <h3>Data Management</h3>
+        <h3>Data Operations</h3>
         <button onclick="exportData()">Export Schedule</button>
         <button onclick="importData()">Import Schedule</button>
         <input type="file" id="importFile" hidden accept=".json">
@@ -187,9 +186,9 @@
 
     <div class="overlay" id="overlay"></div>
     <div class="meeting-modal" id="meetingModal">
-        <h3>Schedule Meeting</h3>
+        <h3>Schedule New Meeting</h3>
         <form class="meeting-form" id="meetingForm">
-            <input type="text" id="meetingName" placeholder="Meeting Name" required>
+            <input type="text" id="meetingName" placeholder="Meeting Title" required>
             <div id="selectedTeams"></div>
             <div id="selectedLeads"></div>
             <button type="submit">Confirm</button>
@@ -209,154 +208,104 @@
     </div>
 
     <script>
-        // JSONBin.io configuration
-        const BIN_ID = 'https://api.jsonbin.io/v3/b/68110a068a456b79669407d7';
-        const API_KEY = '$2a$10$XTC0FzUB4ck8X/8rxxiM3uTEclRXWMBKhkSdtEeP30B6sPmnAKGHC';
+        // JSONBin.io Configuration
+        const BIN_ID = '68110a068a456b79669407d7'; // Replace with your bin ID
+        const API_KEY = '$2a$10$XTC0FzUB4ck8X/8rxxiM3uTEclRXWMBKhkSdtEeP30B6sPmnAKGHC'; // Replace with your API key
 
-        // Application data
-        const TEAMS = Array.from({length: 12}, (_, i) => ({
-            id: i+1,
-            name: `Team ${i+1}`,
-            lead: `Lead ${i+1}`,
-            leadId: i+1
-        }));
+        // Team Configuration
+        const TEAMS = [
+            { id: 1, name: "Web Platform Team", lead: "Emma Wilson", leadId: 101 },
+            { id: 2, name: "Mobile Development", lead: "Michael Chen", leadId: 102 },
+            { id: 3, name: "QA Engineering", lead: "Sophia Rodriguez", leadId: 103 },
+            { id: 4, name: "DevOps & Infrastructure", lead: "James Thompson", leadId: 104 },
+            { id: 5, name: "UI/UX Design", lead: "Olivia Davis", leadId: 105 },
+            { id: 6, name: "Data Analytics", lead: "Liam Johnson", leadId: 106 },
+            { id: 7, name: "Product Management", lead: "Ava Martinez", leadId: 107 },
+            { id: 8, name: "Cloud Services", lead: "Noah Smith", leadId: 108 }
+        ];
 
         const DAYS_TO_SHOW = 14;
         const TIME_SLOTS = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
         
-        let selectedTeams = [];
-        let selectedLeads = [];
-        let bookedSlots = {};
-        let editingSlot = null;
-        let editingBookingIndex = -1;
+        // Application State
+        let state = {
+            selectedTeams: [],
+            selectedLeads: [],
+            bookedSlots: {}
+        };
 
-        // JSONBin.io integration
-        async function persistData() {
+        // JSONBin.io Integration
+        async function jsonBinRequest(method = 'GET', data = null) {
             try {
                 const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-                    method: 'PUT',
+                    method: method,
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Master-Key': API_KEY
+                        'X-Master-Key': API_KEY,
+                        'X-Bin-Name': 'Team Scheduling Data'
                     },
-                    body: JSON.stringify({
-                        bookings: bookedSlots,
-                        selectedTeams,
-                        selectedLeads
-                    })
+                    body: data ? JSON.stringify(data) : null
                 });
 
-                if (!response.ok) {
-                    throw new Error('Failed to save data');
-                }
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return await response.json();
             } catch (error) {
-                console.error('Saving error:', error);
-                showNotification('Failed to save data to cloud!', 'error');
+                console.error('API Error:', error);
+                showNotification('Cloud sync failed - working offline', 'error');
+                throw error;
+            }
+        }
+
+        async function persistData() {
+            try {
+                await jsonBinRequest('PUT', state);
+            } catch (error) {
+                console.error('Persist error:', error);
             }
         }
 
         async function loadPersistedData() {
             try {
-                const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-                    headers: {'X-Master-Key': API_KEY}
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
+                const { record } = await jsonBinRequest();
                 
-                // Handle empty bin
-                if (!data.record) {
-                    bookedSlots = {};
-                    selectedTeams = [];
-                    selectedLeads = [];
-                    await persistData(); // Create initial record
+                if (!record) {
+                    await jsonBinRequest('PUT', state);
                     return;
                 }
 
-                bookedSlots = data.record.bookings || {};
-                selectedTeams = data.record.selectedTeams || [];
-                selectedLeads = data.record.selectedLeads || [];
-                
-                // Restore checkboxes
-                selectedTeams.forEach(teamId => {
-                    const checkbox = document.querySelector(`#teamSelector input[value="${teamId}"]`);
-                    if (checkbox) checkbox.checked = true;
-                });
-                
-                selectedLeads.forEach(leadId => {
-                    const checkbox = document.querySelector(`#leadSelector input[value="${leadId}"]`);
-                    if (checkbox) checkbox.checked = true;
-                });
+                state.bookedSlots = record.bookedSlots || {};
+                state.selectedTeams = record.selectedTeams || [];
+                state.selectedLeads = record.selectedLeads || [];
 
             } catch (error) {
-                console.error('Loading error:', error);
-                showNotification('Failed to load schedule. Initializing new...', 'warning');
-                bookedSlots = {};
-                selectedTeams = [];
-                selectedLeads = [];
-                await persistData();
+                console.error('Load error:', error);
+                showNotification('Using local data', 'warning');
             }
         }
 
-        // Core application logic
-        function init() {
-            setupSelectors();
-            buildCalendar();
-            loadPersistedData().then(() => {
-                updateCalendarDisplay();
-            });
-            addEventListeners();
-        }
-
+        // Core Functions
         function setupSelectors() {
-            const teamContainer = document.getElementById('teamSelector');
-            teamContainer.innerHTML = TEAMS.map(team => `
+            document.getElementById('teamSelector').innerHTML = TEAMS.map(team => `
                 <label>
                     <input type="checkbox" value="${team.id}">
                     ${team.name}
                 </label>
             `).join('');
 
-            const leadContainer = document.getElementById('leadSelector');
-            leadContainer.innerHTML = TEAMS.map(team => `
+            document.getElementById('leadSelector').innerHTML = TEAMS.map(team => `
                 <label>
                     <input type="checkbox" value="${team.leadId}">
-                    ${team.lead}
+                    ${team.lead} (${team.name})
                 </label>
             `).join('');
-        }
-
-        function addEventListeners() {
-            document.getElementById('teamSelector').addEventListener('change', e => {
-                const checkbox = e.target;
-                const value = parseInt(checkbox.value);
-                selectedTeams = checkbox.checked 
-                    ? [...selectedTeams, value] 
-                    : selectedTeams.filter(id => id !== value);
-                persistData();
-            });
-
-            document.getElementById('leadSelector').addEventListener('change', e => {
-                const checkbox = e.target;
-                const value = parseInt(checkbox.value);
-                selectedLeads = checkbox.checked 
-                    ? [...selectedLeads, value] 
-                    : selectedLeads.filter(id => id !== value);
-                persistData();
-            });
         }
 
         function buildCalendar() {
             const calendar = document.getElementById('calendar');
             calendar.innerHTML = '';
             
-            // Create time column header
+            // Create headers
             calendar.appendChild(createHeader('Time', 'time-header'));
-            
-            // Create day headers
             for (let i = 0; i < DAYS_TO_SHOW; i++) {
                 const date = new Date();
                 date.setDate(date.getDate() + i);
@@ -390,37 +339,21 @@
             });
         }
 
-        function handleSlotClick(date, time) {
+        async function handleSlotClick(date, time) {
             const slotId = `${date}-${time}`;
             
-            if (selectedTeams.length === 0 || selectedLeads.length === 0) {
-                showNotification('Please select at least one team and lead!', 'warning');
+            if (state.selectedTeams.length === 0 || state.selectedLeads.length === 0) {
+                showNotification('Select teams and leads first!', 'warning');
                 return;
             }
 
-            const existingBookings = bookedSlots[slotId] || [];
-            
-            let conflictingTeams = [];
-            let conflictingLeads = [];
+            const conflicts = (state.bookedSlots[slotId] || []).some(booking => 
+                booking.teams.some(t => state.selectedTeams.includes(t)) ||
+                booking.leads.some(l => state.selectedLeads.includes(l))
+            );
 
-            existingBookings.forEach(booking => {
-                const teamConflicts = booking.teams
-                    .filter(team => selectedTeams.includes(team))
-                    .map(teamId => TEAMS.find(t => t.id === teamId).name);
-                
-                const leadConflicts = booking.leads
-                    .filter(lead => selectedLeads.includes(lead))
-                    .map(leadId => TEAMS.find(t => t.leadId === leadId).lead);
-
-                conflictingTeams = [...new Set([...conflictingTeams, ...teamConflicts])];
-                conflictingLeads = [...new Set([...conflictingLeads, ...leadConflicts])];
-            });
-
-            if (conflictingTeams.length > 0 || conflictingLeads.length > 0) {
-                let message = 'Conflict detected with:';
-                if (conflictingTeams.length > 0) message += `<br>Teams: ${conflictingTeams.join(', ')}`;
-                if (conflictingLeads.length > 0) message += `<br>Leads: ${conflictingLeads.join(', ')}`;
-                showNotification(message, 'error');
+            if (conflicts) {
+                showNotification('Schedule conflict detected!', 'error');
                 return;
             }
 
@@ -429,57 +362,51 @@
 
         function showMeetingModal(date, time) {
             const modal = document.getElementById('meetingModal');
-            const overlay = document.getElementById('overlay');
-            const selectedTeamsDiv = document.getElementById('selectedTeams');
-            const selectedLeadsDiv = document.getElementById('selectedLeads');
-
-            document.getElementById('meetingName').value = '';
-            
-            selectedTeamsDiv.innerHTML = '<strong>Selected Teams:</strong><br>' +
-                selectedTeams.map(id => TEAMS.find(t => t.id === id).name).join(', ');
-
-            selectedLeadsDiv.innerHTML = '<strong>Selected Leads:</strong><br>' +
-                selectedLeads.map(id => TEAMS.find(t => t.leadId === id).lead).join(', ');
-
             modal.style.display = 'block';
-            overlay.style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
 
-            const form = document.getElementById('meetingForm');
-            form.onsubmit = async function(e) {
+            document.getElementById('selectedTeams').innerHTML = `
+                <strong>Selected Teams:</strong><br>
+                ${state.selectedTeams.map(id => 
+                    `<span class="team-tag">${TEAMS.find(t => t.id === id).name}</span>`
+                ).join(' ')}`;
+
+            document.getElementById('selectedLeads').innerHTML = `
+                <strong>Selected Leads:</strong><br>
+                ${state.selectedLeads.map(id => 
+                    `<span class="lead-tag">${TEAMS.find(t => t.leadId === id).lead}</span>`
+                ).join(' ')}`;
+
+            document.getElementById('meetingForm').onsubmit = async (e) => {
                 e.preventDefault();
-                const meetingName = document.getElementById('meetingName').value.trim();
-                
-                if (!meetingName) {
-                    showNotification('Please enter a meeting name!', 'warning');
-                    return;
-                }
+                const name = document.getElementById('meetingName').value.trim();
+                if (!name) return;
 
                 const slotId = `${date}-${time}`;
-                bookedSlots[slotId] = [...(bookedSlots[slotId] || []), {
-                    meetingName: meetingName,
-                    teams: [...selectedTeams],
-                    leads: [...selectedLeads],
+                state.bookedSlots[slotId] = [...(state.bookedSlots[slotId] || []), {
+                    meetingName: name,
+                    teams: [...state.selectedTeams],
+                    leads: [...state.selectedLeads],
                     timestamp: new Date().toISOString()
                 }];
 
-                // Clear selections
-                selectedTeams = [];
-                selectedLeads = [];
-                document.querySelectorAll('#teamSelector input, #leadSelector input').forEach(checkbox => {
-                    checkbox.checked = false;
-                });
+                // Reset selections
+                state.selectedTeams = [];
+                state.selectedLeads = [];
+                document.querySelectorAll('#teamSelector input, #leadSelector input')
+                    .forEach(cb => cb.checked = false);
 
-                updateCalendarDisplay();
-                showNotification('Meeting scheduled successfully!', 'success');
                 await persistData();
+                updateCalendarDisplay();
                 closeMeetingModal();
+                showNotification('Meeting scheduled!', 'success');
             };
         }
 
         function updateCalendarDisplay() {
             document.querySelectorAll('.time-slot').forEach(slot => {
                 const slotId = `${slot.dataset.date}-${slot.dataset.time}`;
-                const bookings = bookedSlots[slotId] || [];
+                const bookings = state.bookedSlots[slotId] || [];
                 
                 slot.classList.toggle('booked', bookings.length > 0);
                 slot.innerHTML = `<div class="time-label">${slot.dataset.time}</div>`;
@@ -489,8 +416,16 @@
                     details.className = 'meeting-details';
                     details.innerHTML = bookings.map((booking, index) => `
                         <div class="meeting-title">${booking.meetingName}</div>
-                        <div>Teams: ${booking.teams.map(id => TEAMS.find(t => t.id === id).name).join(', ')}</div>
-                        <div>Leads: ${booking.leads.map(id => TEAMS.find(t => t.leadId === id).lead).join(', ')}</div>
+                        <div class="teams-list">
+                            ${booking.teams.map(id => `
+                                <span class="team-tag">${TEAMS.find(t => t.id === id).name}</span>
+                            `).join('')}
+                        </div>
+                        <div class="leads-list">
+                            ${booking.leads.map(id => `
+                                <span class="lead-tag">${TEAMS.find(t => t.leadId === id).lead}</span>
+                            `).join('')}
+                        </div>
                         <div class="meeting-actions">
                             <button class="edit-btn" onclick="handleEditClick(event, '${slotId}', ${index})">Edit</button>
                             <button class="delete-btn" onclick="handleDeleteClick(event, '${slotId}', ${index})">Delete</button>
@@ -501,44 +436,61 @@
             });
         }
 
-        function handleEditClick(event, slotId, bookingIndex) {
+        async function handleEditClick(event, slotId, index) {
             event.stopPropagation();
-            const booking = bookedSlots[slotId][bookingIndex];
-            editingSlot = slotId;
-            editingBookingIndex = bookingIndex;
+            const booking = state.bookedSlots[slotId][index];
             
             document.getElementById('editMeetingName').value = booking.meetingName;
-            document.getElementById('editSelectedTeams').innerHTML = 
-                `<strong>Teams:</strong> ${booking.teams.map(id => TEAMS.find(t => t.id === id).name).join(', ')}`;
-            document.getElementById('editSelectedLeads').innerHTML = 
-                `<strong>Leads:</strong> ${booking.leads.map(id => TEAMS.find(t => t.leadId === id).lead).join(', ')}`;
-            
+            document.getElementById('editSelectedTeams').innerHTML = `
+                <strong>Teams:</strong><br>
+                ${booking.teams.map(id => `
+                    <span class="team-tag">${TEAMS.find(t => t.id === id).name}</span>
+                `).join(' ')}`;
+
+            document.getElementById('editSelectedLeads').innerHTML = `
+                <strong>Leads:</strong><br>
+                ${booking.leads.map(id => `
+                    <span class="lead-tag">${TEAMS.find(t => t.leadId === id).lead}</span>
+                `).join(' ')}`;
+
             document.getElementById('editModal').style.display = 'block';
             document.getElementById('overlay').style.display = 'block';
+
+            document.getElementById('editForm').onsubmit = async (e) => {
+                e.preventDefault();
+                const newName = document.getElementById('editMeetingName').value.trim();
+                state.bookedSlots[slotId][index].meetingName = newName;
+                await persistData();
+                updateCalendarDisplay();
+                closeEditModal();
+                showNotification('Meeting updated!', 'success');
+            };
         }
 
-        function handleDeleteClick(event, slotId, bookingIndex) {
+        async function handleDeleteClick(event, slotId, index) {
             event.stopPropagation();
-            bookedSlots[slotId].splice(bookingIndex, 1);
-            if (bookedSlots[slotId].length === 0) delete bookedSlots[slotId];
-            persistData();
-            updateCalendarDisplay();
-        }
-
-        document.getElementById('editForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const newName = document.getElementById('editMeetingName').value.trim();
-            
-            if (!newName) {
-                showNotification('Meeting name cannot be empty!', 'warning');
-                return;
-            }
-
-            bookedSlots[editingSlot][editingBookingIndex].meetingName = newName;
+            state.bookedSlots[slotId].splice(index, 1);
+            if (state.bookedSlots[slotId].length === 0) delete state.bookedSlots[slotId];
             await persistData();
             updateCalendarDisplay();
-            closeEditModal();
-        });
+            showNotification('Meeting deleted!', 'success');
+        }
+
+        // Utility Functions
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 5000);
+        }
+
+        function createHeader(text, className) {
+            const header = document.createElement('div');
+            header.className = className;
+            header.textContent = text;
+            return header;
+        }
 
         function closeMeetingModal() {
             document.getElementById('meetingModal').style.display = 'none';
@@ -550,21 +502,8 @@
             document.getElementById('overlay').style.display = 'none';
         }
 
-        function showNotification(message, type) {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.innerHTML = message;
-            document.body.appendChild(notification);
-            setTimeout(() => notification.remove(), 5000);
-        }
-
         function exportData() {
-            const data = JSON.stringify({
-                bookings: bookedSlots,
-                selectedTeams,
-                selectedLeads
-            }, null, 2);
-            
+            const data = JSON.stringify(state.bookedSlots, null, 2);
             const blob = new Blob([data], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -583,15 +522,12 @@
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = async (event) => {
                 try {
-                    const data = JSON.parse(event.target.result);
-                    bookedSlots = data.bookings;
-                    selectedTeams = data.selectedTeams;
-                    selectedLeads = data.selectedLeads;
-                    persistData();
-                    loadPersistedData();
-                    showNotification('Data imported successfully!', 'success');
+                    state.bookedSlots = JSON.parse(event.target.result);
+                    await persistData();
+                    updateCalendarDisplay();
+                    showNotification('Schedule imported!', 'success');
                 } catch (error) {
                     showNotification('Invalid file format', 'error');
                 }
@@ -599,14 +535,40 @@
             reader.readAsText(file);
         });
 
-        function createHeader(text, className) {
-            const header = document.createElement('div');
-            header.className = className;
-            header.textContent = text;
-            return header;
+        async function init() {
+            setupSelectors();
+            buildCalendar();
+            await loadPersistedData();
+            
+            // Restore selections
+            state.selectedTeams.forEach(id => 
+                document.querySelector(`#teamSelector input[value="${id}"]`).checked = true
+            );
+            state.selectedLeads.forEach(id => 
+                document.querySelector(`#leadSelector input[value="${id}"]`).checked = true
+            );
+
+            updateCalendarDisplay();
+            
+            // Event listeners
+            document.getElementById('teamSelector').addEventListener('change', async (e) => {
+                const value = parseInt(e.target.value);
+                state.selectedTeams = e.target.checked 
+                    ? [...state.selectedTeams, value] 
+                    : state.selectedTeams.filter(id => id !== value);
+                await persistData();
+            });
+
+            document.getElementById('leadSelector').addEventListener('change', async (e) => {
+                const value = parseInt(e.target.value);
+                state.selectedLeads = e.target.checked 
+                    ? [...state.selectedLeads, value] 
+                    : state.selectedLeads.filter(id => id !== value);
+                await persistData();
+            });
         }
 
-        // Initialize the application
+        // Start Application
         init();
     </script>
 </body>
