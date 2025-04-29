@@ -4,60 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Team Scheduling System</title>
-    
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
-
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyCpsZJCDfv14Fa1-zpfrL2BJnMX5chOA1Q",
-            authDomain: "schedule-b4fb6.firebaseapp.com",
-            projectId: "schedule-b4fb6",
-            storageBucket: "schedule-b4fb6.appspot.com",
-            messagingSenderId: "837575213136",
-            appId: "1:837575213136:web:dd65b524083113822a1155"
-        };
-
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        // Firebase functions
-        window.firebasePersistData = async (bookedSlots, selectedTeams, selectedLeads) => {
-            try {
-                await setDoc(doc(db, "schedules", "main"), {
-                    bookings: bookedSlots,
-                    selectedTeams,
-                    selectedLeads
-                });
-            } catch (error) {
-                console.error("Error saving data:", error);
-                showNotification('Failed to save data to cloud!', 'error');
-            }
-        };
-
-        window.firebaseLoadData = async () => {
-            try {
-                const docSnap = await getDoc(doc(db, "schedules", "main"));
-                return docSnap.exists() ? docSnap.data() : null;
-            } catch (error) {
-                console.error("Error loading data:", error);
-                showNotification('Failed to load data from cloud!', 'error');
-                return null;
-            }
-        };
-
-        // Real-time updates listener
-        onSnapshot(doc(db, "schedules", "main"), (doc) => {
-            const data = doc.data();
-            if (data) {
-                window.handleFirebaseUpdate(data);
-            }
-        });
-    </script>
-
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -263,6 +209,11 @@
     </div>
 
     <script>
+        // JSONBin.io configuration
+        const BIN_ID = '68110a068a456b79669407d7';
+        const API_KEY = '$2a$10$XTC0FzUB4ck8X/8rxxiM3uTEclRXWMBKhkSdtEeP30B6sPmnAKGHC';
+
+        // Application data
         const TEAMS = Array.from({length: 12}, (_, i) => ({
             id: i+1,
             name: `Team ${i+1}`,
@@ -279,48 +230,84 @@
         let editingSlot = null;
         let editingBookingIndex = -1;
 
-        // Firebase real-time update handler
-        window.handleFirebaseUpdate = (data) => {
-            bookedSlots = data.bookings || {};
-            selectedTeams = data.selectedTeams || [];
-            selectedLeads = data.selectedLeads || [];
-            
-            // Update checkboxes
-            document.querySelectorAll('#teamSelector input, #leadSelector input').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-            
-            selectedTeams.forEach(teamId => {
-                const checkbox = document.querySelector(`#teamSelector input[value="${teamId}"]`);
-                if (checkbox) checkbox.checked = true;
-            });
-            
-            selectedLeads.forEach(leadId => {
-                const checkbox = document.querySelector(`#leadSelector input[value="${leadId}"]`);
-                if (checkbox) checkbox.checked = true;
-            });
-            
-            updateCalendarDisplay();
-        };
-
+        // JSONBin.io integration
         async function persistData() {
-            await window.firebasePersistData(bookedSlots, selectedTeams, selectedLeads);
-        }
+            try {
+                const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': API_KEY
+                    },
+                    body: JSON.stringify({
+                        bookings: bookedSlots,
+                        selectedTeams,
+                        selectedLeads
+                    })
+                });
 
-        async function loadPersistedData() {
-            const data = await window.firebaseLoadData();
-            if (data) {
-                bookedSlots = data.bookings || {};
-                selectedTeams = data.selectedTeams || [];
-                selectedLeads = data.selectedLeads || [];
-                updateCalendarDisplay();
+                if (!response.ok) {
+                    throw new Error('Failed to save data');
+                }
+            } catch (error) {
+                console.error('Saving error:', error);
+                showNotification('Failed to save data to cloud!', 'error');
             }
         }
 
+        async function loadPersistedData() {
+            try {
+                const response = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+                    headers: {'X-Master-Key': API_KEY}
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Handle empty bin
+                if (!data.record) {
+                    bookedSlots = {};
+                    selectedTeams = [];
+                    selectedLeads = [];
+                    await persistData(); // Create initial record
+                    return;
+                }
+
+                bookedSlots = data.record.bookings || {};
+                selectedTeams = data.record.selectedTeams || [];
+                selectedLeads = data.record.selectedLeads || [];
+                
+                // Restore checkboxes
+                selectedTeams.forEach(teamId => {
+                    const checkbox = document.querySelector(`#teamSelector input[value="${teamId}"]`);
+                    if (checkbox) checkbox.checked = true;
+                });
+                
+                selectedLeads.forEach(leadId => {
+                    const checkbox = document.querySelector(`#leadSelector input[value="${leadId}"]`);
+                    if (checkbox) checkbox.checked = true;
+                });
+
+            } catch (error) {
+                console.error('Loading error:', error);
+                showNotification('Failed to load schedule. Initializing new...', 'warning');
+                bookedSlots = {};
+                selectedTeams = [];
+                selectedLeads = [];
+                await persistData();
+            }
+        }
+
+        // Core application logic
         function init() {
             setupSelectors();
             buildCalendar();
-            loadPersistedData();
+            loadPersistedData().then(() => {
+                updateCalendarDisplay();
+            });
             addEventListeners();
         }
 
@@ -366,7 +353,10 @@
             const calendar = document.getElementById('calendar');
             calendar.innerHTML = '';
             
+            // Create time column header
             calendar.appendChild(createHeader('Time', 'time-header'));
+            
+            // Create day headers
             for (let i = 0; i < DAYS_TO_SHOW; i++) {
                 const date = new Date();
                 date.setDate(date.getDate() + i);
@@ -380,6 +370,7 @@
                 ));
             }
 
+            // Create time slots
             TIME_SLOTS.forEach(time => {
                 calendar.appendChild(createHeader(time, 'time-header'));
                 
@@ -599,7 +590,7 @@
                     selectedTeams = data.selectedTeams;
                     selectedLeads = data.selectedLeads;
                     persistData();
-                    updateCalendarDisplay();
+                    loadPersistedData();
                     showNotification('Data imported successfully!', 'success');
                 } catch (error) {
                     showNotification('Invalid file format', 'error');
