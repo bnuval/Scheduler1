@@ -29,6 +29,8 @@
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            max-height: 400px;
+            overflow-y: auto;
         }
         .calendar {
             display: grid;
@@ -89,6 +91,8 @@
             box-shadow: 0 0 20px rgba(0,0,0,0.2);
             z-index: 1001;
             width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
         }
         .meeting-form input {
             width: 100%;
@@ -125,22 +129,24 @@
             display: flex;
             gap: 5px;
         }
-        .edit-btn { background: #3498db; color: white; border: none; padding: 3px 8px; cursor: pointer; }
-        .delete-btn { background: #e74c3c; color: white; border: none; padding: 3px 8px; cursor: pointer; }
-        #teamSelector, #leadSelector {
+        .edit-btn { background: #3498db; color: white; border: none; padding: 3px 8px; cursor: pointer; border-radius: 3px; }
+        .delete-btn { background: #e74c3c; color: white; border: none; padding: 3px 8px; cursor: pointer; border-radius: 3px; }
+        #teamSelector, #leadSelector, #editTeamSelector, #editLeadSelector {
             display: flex;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 10px;
             margin-top: 10px;
         }
-        #teamSelector label, #leadSelector label {
+        #teamSelector label, #leadSelector label, #editTeamSelector label, #editLeadSelector label {
             display: flex;
             align-items: center;
             gap: 5px;
             background: #f8f9fa;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 20px;
             border: 1px solid #ddd;
+            font-size: 0.9em;
+            margin: 3px 0;
         }
         .team-tag {
             background: #e8f4ff;
@@ -148,6 +154,7 @@
             border-radius: 12px;
             margin: 2px;
             display: inline-block;
+            font-size: 0.85em;
         }
         .lead-tag {
             background: #fff3e0;
@@ -155,6 +162,34 @@
             border-radius: 12px;
             margin: 2px;
             display: inline-block;
+            font-size: 0.85em;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .button-group button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .confirm-btn {
+            background: #2ecc71;
+            color: white;
+        }
+        .cancel-btn {
+            background: #e74c3c;
+            color: white;
+        }
+        h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .team-section, .lead-section {
+            margin-top: 15px;
         }
     </style>
 </head>
@@ -178,14 +213,44 @@
     <div class="calendar" id="calendar"></div>
 
     <div class="overlay" id="overlay"></div>
+    
+    <!-- Add New Meeting Modal -->
     <div class="meeting-modal" id="meetingModal">
         <h3>Schedule New Meeting</h3>
         <form class="meeting-form" id="meetingForm">
             <input type="text" id="meetingName" placeholder="Meeting Title" required>
             <div id="selectedTeams"></div>
             <div id="selectedLeads"></div>
-            <button type="submit">Confirm</button>
-            <button type="button" onclick="closeMeetingModal()">Cancel</button>
+            <div class="button-group">
+                <button type="submit" class="confirm-btn">Confirm</button>
+                <button type="button" class="cancel-btn" onclick="closeMeetingModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Edit Meeting Modal -->
+    <div class="meeting-modal" id="editMeetingModal">
+        <h3>Edit Meeting</h3>
+        <form class="meeting-form" id="editMeetingForm">
+            <input type="text" id="editMeetingName" placeholder="Meeting Title" required>
+            
+            <div class="team-section">
+                <h4>Select Teams:</h4>
+                <div id="editTeamSelector"></div>
+            </div>
+            
+            <div class="lead-section">
+                <h4>Select Leads:</h4>
+                <div id="editLeadSelector"></div>
+            </div>
+            
+            <input type="hidden" id="editSlotId">
+            <input type="hidden" id="editMeetingIndex">
+            
+            <div class="button-group">
+                <button type="submit" class="confirm-btn">Update Meeting</button>
+                <button type="button" class="cancel-btn" onclick="closeEditMeetingModal()">Cancel</button>
+            </div>
         </form>
     </div>
 
@@ -194,7 +259,7 @@
         const BIN_ID = '68111b728960c979a58fd82b'; // Replace with your bin ID
         const API_KEY = '$2a$10$f3q74/wLdu/PTRyyIK/qD.KzH0nNADmxyQdokYkkfdpy7bWaJijFO'; // Replace with your API key
 
-        // Team Configuration
+        // Teams and leads configuration
         const TEAMS = [
             { id: 1, name: "DBA", lead: "Micah Tison", leadId: 101 },
             { id: 2, name: "DevSecOps", lead: "Luca Mohammadi", leadId: 102 },
@@ -214,17 +279,23 @@
             { id: 16, name: "Team 24 - Raptors", lead: "Jeanne De Beer", leadId: 116 },
             { id: 17, name: "Team 25 - Divergent", lead: "Ulrike Weissbach", leadId: 117 },
             { id: 18, name: "Team 26 - Orchestr8", lead: "Melissa Labanc", leadId: 118 },
-            { id: 19, name: "Team 27" },
-            { id: 20, name: "Team 28 - Vanguard" },
-            { id: 21, name: "Team 34 - Regulatory Content" },
-            { id: 22, name: "Team QFDS" },
-            { id: 23, name: "Team Y" },
-            { id: 24, name: "New Exchange Team" },
-            { id: 25, name: "New Insight Team" }
+            { id: 19, name: "Team 27", lead: "", leadId: null },
+            { id: 20, name: "Team 28 - Vanguard", lead: "", leadId: null },
+            { id: 21, name: "Team 34 - Regulatory Content", lead: "", leadId: null },
+            { id: 22, name: "Team QFDS", lead: "", leadId: null },
+            { id: 23, name: "Team Y", lead: "", leadId: null },
+            { id: 24, name: "New Exchange Team", lead: "", leadId: null },
+            { id: 25, name: "New Insight Team", lead: "", leadId: null }
         ];
 
+        // Get valid leads (no null or undefined values)
+        const LEADS = TEAMS.filter(team => team.lead && team.leadId).map(team => ({
+            id: team.leadId,
+            name: team.lead
+        }));
+
         const DAYS_TO_SHOW = 14;
-        const TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', '04:00', '04:30', '05:00', '05:30', '06:00', '06:30', '07:00', '07:30', '08:00', '08:30'];
+        const TIME_SLOTS = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '13:00', '14:00', '15:00', '16:00'];
         
         // Memory-only selections
         let selectedTeams = [];
@@ -279,16 +350,19 @@
                     details.innerHTML = bookings.map((booking, index) => `
                         <div class="meeting-title">${booking.meetingName}</div>
                         <div class="teams-list">
-                            ${booking.teams.map(id => `
-                                <span class="team-tag">${TEAMS.find(t => t.id === id).name}</span>
-                            `).join('')}
+                            ${booking.teams.map(id => {
+                                const team = TEAMS.find(t => t.id === id);
+                                return team ? `<span class="team-tag">${team.name}</span>` : '';
+                            }).join('')}
                         </div>
                         <div class="leads-list">
-                            ${booking.leads.map(id => `
-                                <span class="lead-tag">${TEAMS.find(t => t.leadId === id).lead}</span>
-                            `).join('')}
+                            ${booking.leads.map(id => {
+                                const lead = LEADS.find(l => l.id === id);
+                                return lead ? `<span class="lead-tag">${lead.name}</span>` : '';
+                            }).join('')}
                         </div>
                         <div class="meeting-actions">
+                            <button class="edit-btn" onclick="handleEditClick('${slotId}', ${index})">Edit</button>
                             <button class="delete-btn" onclick="handleDeleteClick('${slotId}', ${index})">Delete</button>
                         </div>
                     `).join('<hr>');
@@ -340,7 +414,104 @@
                 showNotification('Meeting scheduled!', 'success');
                 updateCalendarDisplay();
                 closeMeetingModal();
+                clearSelections();
             }
+        }
+
+        async function handleEditSave(e) {
+            e.preventDefault();
+            
+            const slotId = document.getElementById('editSlotId').value;
+            const meetingIndex = parseInt(document.getElementById('editMeetingIndex').value);
+            const meetingName = document.getElementById('editMeetingName').value.trim();
+            
+            // Get selected teams and leads from the edit form
+            const editTeams = Array.from(document.querySelectorAll('#editTeamSelector input:checked'))
+                .map(input => parseInt(input.value));
+            
+            const editLeads = Array.from(document.querySelectorAll('#editLeadSelector input:checked'))
+                .map(input => parseInt(input.value));
+            
+            if (editTeams.length === 0 || editLeads.length === 0) {
+                showNotification('Select at least one team and one lead', 'warning');
+                return;
+            }
+            
+            if (!meetingName) {
+                showNotification('Enter meeting name', 'warning');
+                return;
+            }
+            
+            const bookedSlots = await getLiveData();
+            if (!bookedSlots[slotId] || !bookedSlots[slotId][meetingIndex]) {
+                showNotification('Meeting not found', 'error');
+                return;
+            }
+            
+            // Check for conflicts (excluding the current meeting)
+            const otherMeetings = bookedSlots[slotId].filter((_, idx) => idx !== meetingIndex);
+            const conflict = otherMeetings.some(meeting => 
+                meeting.teams.some(t => editTeams.includes(t)) ||
+                meeting.leads.some(l => editLeads.includes(l))
+            );
+            
+            if (conflict) {
+                showNotification('Conflict detected with another meeting!', 'error');
+                return;
+            }
+            
+            // Update the meeting
+            bookedSlots[slotId][meetingIndex] = {
+                ...bookedSlots[slotId][meetingIndex],
+                meetingName: meetingName,
+                teams: editTeams,
+                leads: editLeads,
+                lastEdited: new Date().toISOString()
+            };
+            
+            if (await saveLiveData(bookedSlots)) {
+                showNotification('Meeting updated!', 'success');
+                closeEditMeetingModal();
+                updateCalendarDisplay();
+            }
+        }
+
+        async function handleEditClick(slotId, index) {
+            const bookedSlots = await getLiveData();
+            if (!bookedSlots[slotId] || !bookedSlots[slotId][index]) {
+                showNotification('Meeting not found', 'error');
+                return;
+            }
+            
+            const meeting = bookedSlots[slotId][index];
+            
+            // Populate the edit form
+            document.getElementById('editMeetingName').value = meeting.meetingName;
+            document.getElementById('editSlotId').value = slotId;
+            document.getElementById('editMeetingIndex').value = index;
+            
+            // Setup team checkboxes
+            document.getElementById('editTeamSelector').innerHTML = TEAMS.map(team => `
+                <label>
+                    <input type="checkbox" value="${team.id}" ${meeting.teams.includes(team.id) ? 'checked' : ''}>
+                    ${team.name}
+                </label>
+            `).join('');
+            
+            // Setup lead checkboxes
+            document.getElementById('editLeadSelector').innerHTML = LEADS.map(lead => `
+                <label>
+                    <input type="checkbox" value="${lead.id}" ${meeting.leads.includes(lead.id) ? 'checked' : ''}>
+                    ${lead.name}
+                </label>
+            `).join('');
+            
+            // Display the edit modal
+            document.getElementById('editMeetingModal').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+            
+            // Set up the form submission handler
+            document.getElementById('editMeetingForm').onsubmit = handleEditSave;
         }
 
         async function handleDeleteClick(slotId, index) {
@@ -365,15 +536,17 @@
 
             document.getElementById('selectedTeams').innerHTML = `
                 <strong>Teams:</strong><br>
-                ${selectedTeams.map(id => `
-                    <span class="team-tag">${TEAMS.find(t => t.id === id).name}</span>
-                `).join(' ')}`;
+                ${selectedTeams.map(id => {
+                    const team = TEAMS.find(t => t.id === id);
+                    return team ? `<span class="team-tag">${team.name}</span>` : '';
+                }).join(' ')}`;
 
             document.getElementById('selectedLeads').innerHTML = `
                 <strong>Leads:</strong><br>
-                ${selectedLeads.map(id => `
-                    <span class="lead-tag">${TEAMS.find(t => t.leadId === id).lead}</span>
-                `).join(' ')}`;
+                ${selectedLeads.map(id => {
+                    const lead = LEADS.find(l => l.id === id);
+                    return lead ? `<span class="lead-tag">${lead.name}</span>` : '';
+                }).join(' ')}`;
 
             document.getElementById('meetingForm').onsubmit = (e) => {
                 e.preventDefault();
@@ -384,6 +557,29 @@
         function closeMeetingModal() {
             document.getElementById('meetingModal').style.display = 'none';
             document.getElementById('overlay').style.display = 'none';
+            document.getElementById('meetingName').value = '';
+        }
+
+        function closeEditMeetingModal() {
+            document.getElementById('editMeetingModal').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+        }
+
+        function clearSelections() {
+            // Clear checkboxes
+            document.querySelectorAll('#teamSelector input[type="checkbox"]').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            document.querySelectorAll('#leadSelector input[type="checkbox"]').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // Clear the arrays
+            selectedTeams = [];
+            selectedLeads = [];
+            
+            // Clear the meeting name input
             document.getElementById('meetingName').value = '';
         }
 
@@ -428,9 +624,7 @@
                     slot.dataset.time = time;
                     slot.innerHTML = `<div class="time-label">${time}</div>`;
                     slot.addEventListener('click', () => {
-                        if (selectedTeams.length > 0 && selectedLeads.length > 0) {
-                            showMeetingModal(dateStr, time);
-                        }
+                        showMeetingModal(dateStr, time);
                     });
                     calendar.appendChild(slot);
                 }
@@ -445,6 +639,7 @@
         }
 
         function setupSelectors() {
+            // Teams selector
             document.getElementById('teamSelector').innerHTML = TEAMS.map(team => `
                 <label>
                     <input type="checkbox" value="${team.id}">
@@ -452,28 +647,39 @@
                 </label>
             `).join('');
 
-            document.getElementById('leadSelector').innerHTML = TEAMS.map(team => `
+            // Leads selector (only showing valid leads)
+            document.getElementById('leadSelector').innerHTML = LEADS.map(lead => `
                 <label>
-                    <input type="checkbox" value="${team.leadId}">
-                    ${team.lead}
+                    <input type="checkbox" value="${lead.id}">
+                    ${lead.name}
                 </label>
             `).join('');
 
             // Event listeners for selections
             document.getElementById('teamSelector').addEventListener('change', (e) => {
-                const value = parseInt(e.target.value);
-                selectedTeams = e.target.checked 
-                    ? [...selectedTeams, value] 
-                    : selectedTeams.filter(id => id !== value);
+                if (e.target.type === 'checkbox') {
+                    const value = parseInt(e.target.value);
+                    selectedTeams = e.target.checked 
+                        ? [...selectedTeams, value] 
+                        : selectedTeams.filter(id => id !== value);
+                }
             });
 
             document.getElementById('leadSelector').addEventListener('change', (e) => {
-                const value = parseInt(e.target.value);
-                selectedLeads = e.target.checked 
-                    ? [...selectedLeads, value] 
-                    : selectedLeads.filter(id => id !== value);
+                if (e.target.type === 'checkbox') {
+                    const value = parseInt(e.target.value);
+                    selectedLeads = e.target.checked 
+                        ? [...selectedLeads, value] 
+                        : selectedLeads.filter(id => id !== value);
+                }
             });
         }
+
+        // Close modals when clicking on overlay
+        document.getElementById('overlay').addEventListener('click', () => {
+            closeMeetingModal();
+            closeEditMeetingModal();
+        });
 
         // Initialize application
         async function init() {
