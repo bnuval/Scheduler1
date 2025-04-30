@@ -34,7 +34,7 @@
         }
         .calendar {
             display: grid;
-            grid-template-columns: 100px repeat(14, 1fr);
+            grid-template-columns: 100px repeat(10, 1fr);
             gap: 2px;
             background: white;
             padding: 10px;
@@ -191,6 +191,10 @@
         .team-section, .lead-section {
             margin-top: 15px;
         }
+        .weekend-day {
+            background: #f5f5f5;
+            color: #aaa;
+        }
     </style>
 </head>
 <body>
@@ -294,8 +298,12 @@
             name: team.lead
         }));
 
-        const DAYS_TO_SHOW = 14;
+        // Configuration for days to show (10 working days)
+        const MAX_WORKING_DAYS = 10;
         const TIME_SLOTS = ['12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', '04:00', '04:30', '05:00', '05:30', '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00'];
+        
+        // Start date - May 12, 2025
+        const START_DATE = new Date(2025, 4, 12); // Month is 0-indexed, so 4 = May
         
         // Memory-only selections
         let selectedTeams = [];
@@ -362,8 +370,8 @@
                             }).join('')}
                         </div>
                         <div class="meeting-actions">
-                            <button class="edit-btn" onclick="handleEditClick('${slotId}', ${index})">Edit</button>
-                            <button class="delete-btn" onclick="handleDeleteClick('${slotId}', ${index})">Delete</button>
+                            <button class="edit-btn" onclick="event.stopPropagation(); handleEditClick('${slotId}', ${index})">Edit</button>
+                            <button class="delete-btn" onclick="event.stopPropagation(); handleDeleteClick('${slotId}', ${index})">Delete</button>
                         </div>
                     `).join('<hr>');
                     slot.appendChild(details);
@@ -591,15 +599,38 @@
             setTimeout(() => notification.remove(), 5000);
         }
 
+        function getWorkingDaysFromStartDate() {
+            const days = [];
+            let date = new Date(START_DATE);
+            let workingDaysCount = 0;
+            
+            while (workingDaysCount < MAX_WORKING_DAYS) {
+                const dayOfWeek = date.getDay();
+                // Check if it's a weekday (1-5 is Monday to Friday)
+                if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+                    days.push(new Date(date));
+                    workingDaysCount++;
+                }
+                // Move to next day
+                date.setDate(date.getDate() + 1);
+            }
+            
+            return days;
+        }
+
         function buildCalendar() {
             const calendar = document.getElementById('calendar');
             calendar.innerHTML = '';
             
+            // Get working days
+            const workingDays = getWorkingDaysFromStartDate();
+            
+            // Update grid columns to match number of days + time column
+            calendar.style.gridTemplateColumns = `100px repeat(${workingDays.length}, 1fr)`;
+            
             // Headers
             calendar.appendChild(createHeader('Time', 'time-header'));
-            for (let i = 0; i < DAYS_TO_SHOW; i++) {
-                const date = new Date();
-                date.setDate(date.getDate() + i);
+            workingDays.forEach(date => {
                 calendar.appendChild(createHeader(
                     date.toLocaleDateString('en-US', { 
                         weekday: 'short', 
@@ -608,14 +639,13 @@
                     }),
                     'day-header'
                 ));
-            }
+            });
 
             // Time slots
             TIME_SLOTS.forEach(time => {
                 calendar.appendChild(createHeader(time, 'time-header'));
-                for (let i = 0; i < DAYS_TO_SHOW; i++) {
-                    const date = new Date();
-                    date.setDate(date.getDate() + i);
+                
+                workingDays.forEach(date => {
                     const dateStr = date.toISOString().split('T')[0];
                     
                     const slot = document.createElement('div');
@@ -627,7 +657,7 @@
                         showMeetingModal(dateStr, time);
                     });
                     calendar.appendChild(slot);
-                }
+                });
             });
         }
 
