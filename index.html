@@ -24,13 +24,19 @@
             gap: 20px;
             margin-bottom: 30px;
         }
-        .selection-panel {
+        .selection-panel, .time-zone-panel {
             background: white;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             max-height: 400px;
             overflow-y: auto;
+        }
+        .time-zone-panel {
+            margin-bottom: 20px;
+        }
+        #timeZoneDisplay p {
+            margin: 5px 0;
         }
         .calendar {
             display: grid;
@@ -214,6 +220,18 @@
         </div>
     </div>
 
+    <div class="time-zone-panel">
+        <h3>Current Times</h3>
+        <div id="timeZoneDisplay">
+            <p>India: <span id="indiaTime"></span></p>
+            <p>USA Eastern: <span id="estTime"></span></p>
+            <p>USA Pacific: <span id="pstTime"></span></p>
+            <p>USA Central: <span id="cstTime"></span></p>
+            <p>Bulgaria: <span id="bulgariaTime"></span></p>
+            <p>Germany: <span id="germanyTime"></span></p>
+        </div>
+    </div>
+
     <div class="calendar" id="calendar"></div>
 
     <div class="overlay" id="overlay"></div>
@@ -308,6 +326,34 @@
         // Memory-only selections
         let selectedTeams = [];
         let selectedLeads = [];
+
+        // Time zones configuration
+        const timeZones = [
+            { tz: 'Asia/Kolkata', elementId: 'indiaTime' },
+            { tz: 'America/New_York', elementId: 'estTime' },
+            { tz: 'America/Los_Angeles', elementId: 'pstTime' },
+            { tz: 'America/Chicago', elementId: 'cstTime' },
+            { tz: 'Europe/Sofia', elementId: 'bulgariaTime' },
+            { tz: 'Europe/Berlin', elementId: 'germanyTime' }
+        ];
+
+        // Update time zone display every second
+        function updateTimes() {
+            const now = new Date();
+            timeZones.forEach(tz => {
+                const options = {
+                    timeZone: tz.tz,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false,
+                    timeZoneName: 'shortOffset'
+                };
+                const formatter = new Intl.DateTimeFormat([], options);
+                const timeString = formatter.format(now);
+                document.getElementById(tz.elementId).textContent = timeString;
+            });
+        }
 
         // JSONBin.io Direct Access
         async function getLiveData() {
@@ -499,7 +545,7 @@
             document.getElementById('editMeetingIndex').value = index;
             
             // Setup team checkboxes
-            document.getElementById('editTeamSelector').innerHTML = TEAMS.map(team => `
+            documentXx.getElementById('editTeamSelector').innerHTML = TEAMS.map(team => `
                 <label>
                     <input type="checkbox" value="${team.id}" ${meeting.teams.includes(team.id) ? 'checked' : ''}>
                     ${team.name}
@@ -716,6 +762,8 @@
             setupSelectors();
             buildCalendar();
             await updateCalendarDisplay();
+            updateTimes(); // Initialize time zone display
+            setInterval(updateTimes, 1000); // Update every second
         }
 
         init();
