@@ -75,6 +75,10 @@
             background: #e8f6e8;
             border-color: #2ecc71;
         }
+        .multi-slot {
+            background: #e0e8f5;
+            border-color: #3498db;
+        }
         .notification {
             position: fixed;
             top: 20px;
@@ -100,7 +104,7 @@
             max-height: 80vh;
             overflow-y: auto;
         }
-        .meeting-form input {
+        .meeting-form input, .meeting-form select {
             width: 100%;
             padding: 8px;
             margin: 8px 0;
@@ -213,12 +217,43 @@
             padding: 0 5px;
             line-height: 1;
         }
+        .duration-options {
+            margin: 15px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .duration-option {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .duration-option input {
+            width: auto;
+            margin-right: 10px;
+        }
+        .duration-preview {
+            margin-top: 10px;
+            padding: 8px;
+            background: #e8f4ff;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+        .slot-indicator {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #3498db;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Live Team Scheduler</h1>
-        <p>Real-time Scheduling(Time Zone is EST)</p>
+        <p>Real-time Scheduling (Time Zone is EST)</p>
     </div>
 
     <div class="selection-panels">
@@ -228,7 +263,7 @@
         </div>
         <div class="selection-panel">
             <h3>Project Leads</h3>
-			<a href="https://3eco.atlassian.net/wiki/spaces/3EIT/pages/1427275972/Project+Lead+Mapping">Project Lead Mapping Sheet</a>
+            <a href="https://3eco.atlassian.net/wiki/spaces/3EIT/pages/1427275972/Project+Lead+Mapping">Project Lead Mapping Sheet</a>
             <div id="leadSelector"></div>
         </div>
     </div>
@@ -254,8 +289,33 @@
         <h3>Schedule New Meeting</h3>
         <form class="meeting-form" id="meetingForm">
             <input type="text" id="meetingName" placeholder="Meeting Title" required>
+            
+            <div class="duration-options">
+                <h4>Meeting Duration:</h4>
+                <div class="duration-option">
+                    <input type="radio" id="duration30" name="duration" value="30" checked>
+                    <label for="duration30">30 minutes</label>
+                </div>
+                <div class="duration-option">
+                    <input type="radio" id="duration60" name="duration" value="60">
+                    <label for="duration60">1 hour</label>
+                </div>
+                <div class="duration-option">
+                    <input type="radio" id="duration90" name="duration" value="90">
+                    <label for="duration90">1.5 hours</label>
+                </div>
+                <div class="duration-option">
+                    <input type="radio" id="duration120" name="duration" value="120">
+                    <label for="duration120">2 hours</label>
+                </div>
+                <div class="duration-preview" id="durationPreview"></div>
+            </div>
+            
             <div id="selectedTeams"></div>
             <div id="selectedLeads"></div>
+            <input type="hidden" id="selectedDate">
+            <input type="hidden" id="selectedTime">
+            
             <div class="button-group">
                 <button type="submit" class="confirm-btn">Confirm</button>
                 <button type="button" class="cancel-btn" onclick="closeMeetingModal()">Cancel</button>
@@ -268,6 +328,27 @@
         <h3>Edit Meeting</h3>
         <form class="meeting-form" id="editMeetingForm">
             <input type="text" id="editMeetingName" placeholder="Meeting Title" required>
+            
+            <div class="duration-options">
+                <h4>Meeting Duration:</h4>
+                <div class="duration-option">
+                    <input type="radio" id="editDuration30" name="editDuration" value="30">
+                    <label for="editDuration30">30 minutes</label>
+                </div>
+                <div class="duration-option">
+                    <input type="radio" id="editDuration60" name="editDuration" value="60">
+                    <label for="editDuration60">1 hour</label>
+                </div>
+                <div class="duration-option">
+                    <input type="radio" id="editDuration90" name="editDuration" value="90">
+                    <label for="editDuration90">1.5 hours</label>
+                </div>
+                <div class="duration-option">
+                    <input type="radio" id="editDuration120" name="editDuration" value="120">
+                    <label for="editDuration120">2 hours</label>
+                </div>
+                <div class="duration-preview" id="editDurationPreview"></div>
+            </div>
             
             <div class="team-section">
                 <h4>Select Teams:</h4>
@@ -332,10 +413,12 @@
         const MAX_WORKING_DAYS = 10;
         const TIME_SLOTS = ['14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', '04:00', '04:30', '05:00', '05:30', '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00'];
         const START_DATE = new Date(2025, 4, 12);
+        const SLOT_DURATION = 30; // minutes
 
         // State management
         let selectedTeams = [];
         let selectedLeads = [];
+        let currentSlotId = null;
 
         // Time zones configuration
         const timeZones = [
@@ -406,14 +489,34 @@
                 const slotId = `${slot.dataset.date}-${slot.dataset.time}`;
                 const bookings = bookedSlots[slotId] || [];
                 
-                slot.classList.toggle('booked', bookings.length > 0);
-                slot.innerHTML = `<div class="time-label">${slot.dataset.time}</div>`;
+                // Reset slot classes
+                slot.className = 'time-slot';
+                if (bookings.length > 0) {
+                    slot.classList.add('booked');
+                }
+                
+                // Check if this slot is part of a multi-slot meeting
+                const isMultiSlot = bookings.some(booking => 
+                    booking.duration > SLOT_DURATION && 
+                    booking.slotSequence && 
+                    booking.slotSequence > 1
+                );
+                
+                if (isMultiSlot) {
+                    slot.classList.add('multi-slot');
+                }
+                
+                slot.innerHTML = `
+                    <div class="time-label">${slot.dataset.time}</div>
+                    ${isMultiSlot ? '<div class="slot-indicator"></div>' : ''}
+                `;
                 
                 if (bookings.length > 0) {
                     const details = document.createElement('div');
                     details.className = 'meeting-details';
                     details.innerHTML = bookings.map((booking, index) => `
                         <div class="meeting-title">${booking.meetingName}</div>
+                        <div>Duration: ${formatDuration(booking.duration)}</div>
                         <div class="teams-list">
                             ${booking.teams.map(id => {
                                 const team = TEAMS.find(t => t.id === id);
@@ -436,7 +539,22 @@
             });
         }
 
-        // Enhanced meeting handling with detailed conflict detection
+        function formatDuration(minutes) {
+            if (minutes < 60) return `${minutes} minutes`;
+            if (minutes === 60) return '1 hour';
+            return `${Math.floor(minutes/60)} hour${minutes > 60 ? 's' : ''} ${minutes%60 ? minutes%60 + ' minutes' : ''}`;
+        }
+
+        // Get all time slots that would be needed for a meeting of specified duration
+        function getTimeSlotsForDuration(startTime, duration) {
+            const startIndex = TIME_SLOTS.indexOf(startTime);
+            if (startIndex === -1) return [];
+            
+            const slotCount = Math.ceil(duration / SLOT_DURATION);
+            return TIME_SLOTS.slice(startIndex, startIndex + slotCount);
+        }
+
+        // Enhanced meeting handling with duration support
         async function handleSlotClick(date, time) {
             if (selectedTeams.length === 0 || selectedLeads.length === 0) {
                 showNotification('Select teams and leads first!', 'warning');
@@ -444,78 +562,91 @@
             }
 
             const bookedSlots = await getLiveData();
-            const slotId = `${date}-${time}`;
-            const existing = bookedSlots[slotId] || [];
+            const duration = parseInt(document.querySelector('input[name="duration"]:checked').value);
+            const meetingName = document.getElementById('meetingName').value.trim();
+            
+            if (!meetingName) {
+                showNotification('Enter meeting name', 'warning');
+                return;
+            }
 
-            const conflictDetails = {
-                teams: new Set(),
-                leads: new Set(),
-                meetings: []
-            };
+            // Get all time slots that would be affected by this booking
+            const timeSlots = getTimeSlotsForDuration(time, duration);
+            if (timeSlots.length === 0) {
+                showNotification('Invalid time selection', 'error');
+                return;
+            }
 
-            existing.forEach(meeting => {
-                const conflictingTeams = meeting.teams.filter(t => selectedTeams.includes(t));
-                const conflictingLeads = meeting.leads.filter(l => selectedLeads.includes(l));
+            // Check for conflicts in all affected slots
+            const conflicts = [];
+            timeSlots.forEach((slotTime, index) => {
+                const slotId = `${date}-${slotTime}`;
+                const existing = bookedSlots[slotId] || [];
                 
-                if (conflictingTeams.length > 0 || conflictingLeads.length > 0) {
-                    conflictDetails.meetings.push({
-                        name: meeting.meetingName,
-                        teams: conflictingTeams,
-                        leads: conflictingLeads
-                    });
+                existing.forEach(meeting => {
+                    const conflictingTeams = meeting.teams.filter(t => selectedTeams.includes(t));
+                    const conflictingLeads = meeting.leads.filter(l => selectedLeads.includes(l));
                     
-                    conflictingTeams.forEach(t => conflictDetails.teams.add(t));
-                    conflictingLeads.forEach(l => conflictDetails.leads.add(l));
-                }
+                    if (conflictingTeams.length > 0 || conflictingLeads.length > 0) {
+                        conflicts.push({
+                            slot: slotTime,
+                            meeting: meeting.meetingName,
+                            teams: conflictingTeams,
+                            leads: conflictingLeads
+                        });
+                    }
+                });
             });
 
-            if (conflictDetails.meetings.length > 0) {
-                let conflictMessage = '<strong>Conflict detected with:</strong><br><br>';
+            if (conflicts.length > 0) {
+                let conflictMessage = '<strong>Conflict detected in:</strong><br><br>';
                 
-                conflictDetails.meetings.forEach((meeting, index) => {
-                    conflictMessage += `<u>${meeting.name}</u><br>`;
+                conflicts.forEach((conflict, index) => {
+                    conflictMessage += `<u>${conflict.meeting} at ${conflict.slot}</u><br>`;
                     
-                    if (meeting.teams.length > 0) {
-                        const teamNames = meeting.teams.map(id => 
+                    if (conflict.teams.length > 0) {
+                        const teamNames = conflict.teams.map(id => 
                             TEAMS.find(t => t.id === id)?.name || 'Unknown Team'
                         ).join(', ');
                         conflictMessage += `Teams: ${teamNames}<br>`;
                     }
                     
-                    if (meeting.leads.length > 0) {
-                        const leadNames = meeting.leads.map(id => 
+                    if (conflict.leads.length > 0) {
+                        const leadNames = conflict.leads.map(id => 
                             LEADS.find(l => l.id === id)?.name || 'Unknown Lead'
                         ).join(', ');
                         conflictMessage += `Leads: ${leadNames}<br>`;
                     }
                     
-                    if (index !== conflictDetails.meetings.length - 1) conflictMessage += '<br>';
+                    if (index !== conflicts.length - 1) conflictMessage += '<br>';
                 });
 
                 showNotification(conflictMessage, 'error', true);
                 return;
             }
 
-            const meetingName = document.getElementById('meetingName').value.trim();
-            if (!meetingName) {
-                showNotification('Enter meeting name', 'warning');
-                return;
-            }
+            // Create booking for each affected time slot
+            const updated = { ...bookedSlots };
+            timeSlots.forEach((slotTime, index) => {
+                const slotId = `${date}-${slotTime}`;
+                const existing = updated[slotId] || [];
+                
+                const newBooking = {
+                    meetingName,
+                    teams: [...selectedTeams],
+                    leads: [...selectedLeads],
+                    duration,
+                    slotSequence: index + 1, // 1-based index
+                    totalSlots: timeSlots.length,
+                    meetingId: `${date}-${time}-${Date.now()}`,
+                    timestamp: new Date().toISOString()
+                };
 
-            const newBooking = {
-                meetingName,
-                teams: [...selectedTeams],
-                leads: [...selectedLeads],
-                timestamp: new Date().toISOString()
-            };
-
-            const updated = {
-                ...bookedSlots,
-                [slotId]: [...existing, newBooking]
-            };
+                updated[slotId] = [...existing, newBooking];
+            });
 
             if (await saveLiveData(updated)) {
-                showNotification('Meeting scheduled!', 'success');
+                showNotification(`Meeting scheduled for ${formatDuration(duration)}!`, 'success');
                 updateCalendarDisplay();
                 closeMeetingModal();
                 clearSelections();
@@ -549,6 +680,7 @@
             const slotId = document.getElementById('editSlotId').value;
             const meetingIndex = parseInt(document.getElementById('editMeetingIndex').value);
             const meetingName = document.getElementById('editMeetingName').value.trim();
+            const duration = parseInt(document.querySelector('input[name="editDuration"]:checked').value);
             
             const editTeams = Array.from(document.querySelectorAll('#editTeamSelector input:checked'))
                 .map(input => parseInt(input.value));
@@ -567,31 +699,98 @@
             }
             
             const bookedSlots = await getLiveData();
-            if (!bookedSlots[slotId] || !bookedSlots[slotId][meetingIndex]) {
+            const originalMeeting = bookedSlots[slotId][meetingIndex];
+            
+            if (!originalMeeting) {
                 showNotification('Meeting not found', 'error');
                 return;
             }
             
-            const otherMeetings = bookedSlots[slotId].filter((_, idx) => idx !== meetingIndex);
-            const conflict = otherMeetings.some(meeting => 
-                meeting.teams.some(t => editTeams.includes(t)) ||
-                meeting.leads.some(l => editLeads.includes(l))
-            );
+            // Get all time slots that would be affected by this update
+            const timeParts = slotId.split('-');
+            const date = timeParts.slice(0, 3).join('-');
+            const time = timeParts.slice(3).join(':');
             
-            if (conflict) {
-                showNotification('Conflict detected with another meeting!', 'error');
+            const newTimeSlots = getTimeSlotsForDuration(time, duration);
+            
+            // Check for conflicts in all affected slots (excluding the original meeting)
+            const conflicts = [];
+            newTimeSlots.forEach((slotTime, index) => {
+                const checkSlotId = `${date}-${slotTime}`;
+                const existing = bookedSlots[checkSlotId] || [];
+                
+                existing.forEach(meeting => {
+                    // Skip checking against the original meeting we're editing
+                    if (meeting.meetingId === originalMeeting.meetingId) return;
+                    
+                    const conflictingTeams = meeting.teams.filter(t => editTeams.includes(t));
+                    const conflictingLeads = meeting.leads.filter(l => editLeads.includes(l));
+                    
+                    if (conflictingTeams.length > 0 || conflictingLeads.length > 0) {
+                        conflicts.push({
+                            slot: slotTime,
+                            meeting: meeting.meetingName,
+                            teams: conflictingTeams,
+                            leads: conflictingLeads
+                        });
+                    }
+                });
+            });
+            
+            if (conflicts.length > 0) {
+                let conflictMessage = '<strong>Conflict detected in:</strong><br><br>';
+                
+                conflicts.forEach((conflict, index) => {
+                    conflictMessage += `<u>${conflict.meeting} at ${conflict.slot}</u><br>`;
+                    
+                    if (conflict.teams.length > 0) {
+                        const teamNames = conflict.teams.map(id => 
+                            TEAMS.find(t => t.id === id)?.name || 'Unknown Team'
+                        ).join(', ');
+                        conflictMessage += `Teams: ${teamNames}<br>`;
+                    }
+                    
+                    if (conflict.leads.length > 0) {
+                        const leadNames = conflict.leads.map(id => 
+                            LEADS.find(l => l.id === id)?.name || 'Unknown Lead'
+                        ).join(', ');
+                        conflictMessage += `Leads: ${leadNames}<br>`;
+                    }
+                    
+                    if (index !== conflicts.length - 1) conflictMessage += '<br>';
+                });
+
+                showNotification(conflictMessage, 'error', true);
                 return;
             }
             
-            bookedSlots[slotId][meetingIndex] = {
-                ...bookedSlots[slotId][meetingIndex],
-                meetingName: meetingName,
-                teams: editTeams,
-                leads: editLeads,
-                lastEdited: new Date().toISOString()
-            };
+            // First, remove all instances of the original meeting
+            const updated = { ...bookedSlots };
+            Object.keys(updated).forEach(key => {
+                updated[key] = updated[key].filter(meeting => meeting.meetingId !== originalMeeting.meetingId);
+                if (updated[key].length === 0) delete updated[key];
+            });
             
-            if (await saveLiveData(bookedSlots)) {
+            // Then add the updated meeting to all affected slots
+            newTimeSlots.forEach((slotTime, index) => {
+                const newSlotId = `${date}-${slotTime}`;
+                const existing = updated[newSlotId] || [];
+                
+                const updatedMeeting = {
+                    ...originalMeeting,
+                    meetingName,
+                    teams: editTeams,
+                    leads: editLeads,
+                    duration,
+                    slotSequence: index + 1,
+                    totalSlots: newTimeSlots.length,
+                    lastEdited: new Date().toISOString()
+                };
+                
+                updated[newSlotId] = [...existing, updatedMeeting];
+            });
+            
+            if (await saveLiveData(updated)) {
                 showNotification('Meeting updated!', 'success');
                 closeEditMeetingModal();
                 updateCalendarDisplay();
@@ -610,6 +809,10 @@
             document.getElementById('editMeetingName').value = meeting.meetingName;
             document.getElementById('editSlotId').value = slotId;
             document.getElementById('editMeetingIndex').value = index;
+            
+            // Set duration radio button
+            document.querySelector(`#editDuration${meeting.duration}`).checked = true;
+            updateDurationPreview('editDurationPreview', meeting.duration);
             
             document.getElementById('editTeamSelector').innerHTML = TEAMS.map(team => `
                 <label>
@@ -631,13 +834,22 @@
         }
 
         async function handleDeleteClick(slotId, index) {
-            const bookedSlots = await getLiveData();
-            const updated = { ...bookedSlots };
+            if (!confirm('Are you sure you want to delete this meeting?')) return;
             
-            if (updated[slotId]) {
-                updated[slotId].splice(index, 1);
-                if (updated[slotId].length === 0) delete updated[slotId];
+            const bookedSlots = await getLiveData();
+            const meeting = bookedSlots[slotId][index];
+            
+            if (!meeting) {
+                showNotification('Meeting not found', 'error');
+                return;
             }
+            
+            // Remove all instances of this meeting (in case it's a multi-slot meeting)
+            const updated = { ...bookedSlots };
+            Object.keys(updated).forEach(key => {
+                updated[key] = updated[key].filter(m => m.meetingId !== meeting.meetingId);
+                if (updated[key].length === 0) delete updated[key];
+            });
 
             if (await saveLiveData(updated)) {
                 showNotification('Meeting deleted!', 'success');
@@ -649,6 +861,18 @@
         function showMeetingModal(date, time) {
             document.getElementById('meetingModal').style.display = 'block';
             document.getElementById('overlay').style.display = 'block';
+            document.getElementById('selectedDate').value = date;
+            document.getElementById('selectedTime').value = time;
+            
+            // Update duration preview
+            updateDurationPreview('durationPreview', 30);
+            
+            // Watch for duration changes
+            document.querySelectorAll('input[name="duration"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    updateDurationPreview('durationPreview', parseInt(radio.value));
+                });
+            });
 
             document.getElementById('selectedTeams').innerHTML = `
                 <strong>Teams:</strong><br>
@@ -668,6 +892,20 @@
                 e.preventDefault();
                 handleSlotClick(date, time);
             };
+        }
+
+        function updateDurationPreview(elementId, duration) {
+            const preview = document.getElementById(elementId);
+            const timeSlots = getTimeSlotsForDuration(
+                document.getElementById('selectedTime').value, 
+                duration
+            );
+            
+            if (timeSlots.length > 1) {
+                preview.innerHTML = `This will book slots from ${timeSlots[0]} to ${timeSlots[timeSlots.length-1]}`;
+            } else {
+                preview.innerHTML = `This will book the ${timeSlots[0]} slot`;
+            }
         }
 
         function closeMeetingModal() {
