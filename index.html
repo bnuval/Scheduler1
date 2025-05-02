@@ -954,7 +954,7 @@
             const workingDays = getWorkingDaysFromStartDate();
             calendar.style.gridTemplateColumns = `100px repeat(${workingDays.length}, 1fr)`;
             
-            calendar.appendChild(createHeader('Time', 'time-header'));
+            calendar.appendChild(createHeader('Time (EST)', 'time-header'));
             workingDays.forEach(date => {
                 calendar.appendChild(createHeader(
                     date.toLocaleDateString('en-US', { 
