@@ -38,32 +38,37 @@
         #timeZoneDisplay p {
             margin: 5px 0;
         }
-        .calendar {
-            display: grid;
-            grid-template-columns: 100px repeat(10, 1fr);
-            gap: 2px;
+        .calendar-container {
+            position: relative;
+            overflow: auto;
+            max-width: 100%;
             background: white;
-            padding: 10px;
             border-radius: 10px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            overflow-x: auto;
+            height: 600px;
         }
-        .time-header, .day-header {
-            padding: 10px;
-            text-align: center;
+        .calendar {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        .calendar th {
             background: #f8f9fa;
             position: sticky;
-            z-index: 1;
+            z-index: 10;
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #ecf0f1;
         }
-        .time-header {
+        .calendar thead th {
+            top: 0;
+        }
+        .calendar tbody th {
             left: 0;
             text-align: right;
         }
-        .day-header {
-            top: 0;
-        }
         .time-slot {
             position: relative;
+            min-width: 120px;
             min-height: 80px;
             padding: 10px;
             border: 1px solid #ecf0f1;
@@ -280,11 +285,17 @@
         </div>
     </div>
 
-    <div class="calendar" id="calendar"></div>
+    <div class="calendar-container">
+        <table class="calendar" id="calendar">
+            <thead>
+                <tr id="dayHeaders"></tr>
+            </thead>
+            <tbody id="timeSlots"></tbody>
+        </table>
+    </div>
 
     <div class="overlay" id="overlay"></div>
     
-    <!-- Add New Meeting Modal -->
     <div class="meeting-modal" id="meetingModal">
         <h3>Schedule New Meeting</h3>
         <form class="meeting-form" id="meetingForm">
@@ -323,7 +334,6 @@
         </form>
     </div>
     
-    <!-- Edit Meeting Modal -->
     <div class="meeting-modal" id="editMeetingModal">
         <h3>Edit Meeting</h3>
         <form class="meeting-form" id="editMeetingForm">
@@ -411,7 +421,8 @@
 
         // Calendar configuration
         const MAX_WORKING_DAYS = 10;
-        const TIME_SLOTS = ['00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', '04:00', '04:30', '05:00', '05:30', '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00','14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30'];        const START_DATE = new Date(2025, 4, 12);
+        const TIME_SLOTS = ['00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:30', '04:00', '04:30', '05:00', '05:30', '06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00','14:30', '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00', '22:30', '23:00', '23:30'];
+        const START_DATE = new Date(2025, 4, 12);
         const SLOT_DURATION = 30; // minutes
 
         // State management
@@ -947,31 +958,43 @@
         }
 
         function buildCalendar() {
-            const calendar = document.getElementById('calendar');
-            calendar.innerHTML = '';
+            const dayHeaders = document.getElementById('dayHeaders');
+            const timeSlots = document.getElementById('timeSlots');
+            dayHeaders.innerHTML = '';
+            timeSlots.innerHTML = '';
             
             const workingDays = getWorkingDaysFromStartDate();
-            calendar.style.gridTemplateColumns = `100px repeat(${workingDays.length}, 1fr)`;
             
-            calendar.appendChild(createHeader('Time (EST)', 'time-header'));
+            // Add corner header (top-left)
+            const cornerHeader = document.createElement('th');
+            cornerHeader.textContent = 'Time (EST)';
+            dayHeaders.appendChild(cornerHeader);
+            
+            // Add day headers
             workingDays.forEach(date => {
-                calendar.appendChild(createHeader(
-                    date.toLocaleDateString('en-US', { 
-                        weekday: 'short', 
-                        month: 'short', 
-                        day: 'numeric' 
-                    }),
-                    'day-header'
-                ));
+                const dayHeader = document.createElement('th');
+                dayHeader.textContent = date.toLocaleDateString('en-US', { 
+                    weekday: 'short', 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+                dayHeaders.appendChild(dayHeader);
             });
 
+            // Add time slots
             TIME_SLOTS.forEach(time => {
-                calendar.appendChild(createHeader(time, 'time-header'));
+                const row = document.createElement('tr');
                 
+                // Add time header
+                const timeHeader = document.createElement('th');
+                timeHeader.textContent = time;
+                row.appendChild(timeHeader);
+                
+                // Add time slots for each day
                 workingDays.forEach(date => {
                     const dateStr = date.toISOString().split('T')[0];
                     
-                    const slot = document.createElement('div');
+                    const slot = document.createElement('td');
                     slot.className = 'time-slot';
                     slot.dataset.date = dateStr;
                     slot.dataset.time = time;
@@ -979,16 +1002,11 @@
                     slot.addEventListener('click', () => {
                         showMeetingModal(dateStr, time);
                     });
-                    calendar.appendChild(slot);
+                    row.appendChild(slot);
                 });
+                
+                timeSlots.appendChild(row);
             });
-        }
-
-        function createHeader(text, className) {
-            const header = document.createElement('div');
-            header.className = className;
-            header.textContent = text;
-            return header;
         }
 
         function setupSelectors() {
